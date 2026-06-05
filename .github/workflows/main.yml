@@ -1,0 +1,51 @@
+name: macOS Update Cheker
+
+on:
+  schedule:
+    # 毎日 日本時間 朝7:00 (UTC 前日22:00) と 夕方17:00 (UTC 8:00) に実行
+    - cron: '0 8,22 * * *'
+  workflow_dispatch: # GitHub画面から手動でいつでも実行できるようにするボタン
+
+jobs:
+  run-and-commit:
+    runs-on: ubuntu-latest
+    
+    # リポジトリへの書き込み（Push）権限を明示的に付与
+    permissions:
+      contents: write
+
+    steps:
+    # 1. リポジトリをチェックアウト
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    # 2. Python環境のセットアップ
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+
+    # 3. シークレットを環境変数にセットして main.py を実行
+    - name: Run Python script
+      env:
+        SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+        SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+      run: python main.py
+
+    # 4. 変更があった場合にGitでCommit & Push
+    - name: Commit and Push changes
+      run: |
+        # Gitのユーザー設定
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        
+        # すべての変更・更新されたファイルをステージング
+        git add -A
+        
+        # 変更がある場合のみコミットとプッシュを実行（変更がない場合のエラー落ちを防ぐ）
+        if ! git diff --cached --exit-code --quiet; then
+          git commit -m "Auto-update by GitHub Actions"
+          git push
+        else
+          echo "No changes detected. Skip commit."
+        fi
